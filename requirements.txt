@@ -1,4 +1,4 @@
 fastapi
-uvicorn
 python-pptx
 Pillow
+matplotlib

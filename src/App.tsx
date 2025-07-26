@@ -18,7 +18,7 @@ const App: React.FC = () => {
       formData.append('file', selectedFile);
 
       try {
-        const response = await axios.post('http://localhost:8000/api/slide-info', formData, {
+        const response = await axios.post('/api/slide-info', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },

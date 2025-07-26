@@ -32,7 +32,7 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
     formData.append('highlight_keywords', JSON.stringify(highlightKeywords.split(',').map(k => k.trim()).filter(k => k)));
 
     try {
-      const response = await axios.post('http://localhost:8000/api/get-slide-image', formData, {
+      const response = await axios.post('/api/get-slide-image', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -113,7 +113,7 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
     formData.append('highlight_keywords', JSON.stringify(highlightKeywords.split(',').map(k => k.trim()).filter(k => k)));
 
     try {
-      const response = await axios.post('http://localhost:8000/api/process', formData, {
+      const response = await axios.post('/api/process', formData, {
         responseType: 'blob',
         headers: {
           'Content-Type': 'multipart/form-data',

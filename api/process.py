@@ -66,6 +66,8 @@ def draw_text_with_highlights(draw, text, x, y, font, default_color, highlight_k
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
+    "https://*.vercel.app",  # Vercel 도메인
+    "*"  # 모든 도메인 허용 (개발용)
 ]
 
 app.add_middleware(
@@ -125,14 +127,13 @@ async def get_slide_image(
         img = Image.new('RGB', (1280, 720), color=bg_color)
         d = ImageDraw.Draw(img)
         
-        # 한글을 지원하는 폰트들을 우선순위로 시도
+        # Vercel 서버리스 환경에 맞는 폰트 경로들
+        import os
         font_paths = [
-            "/System/Library/Fonts/AppleSDGothicNeo.ttc",  # macOS 한글 폰트
-            "/Library/Fonts/Arial Unicode MS.ttf",        # 유니코드 지원
-            "/System/Library/Fonts/Helvetica.ttc",        # macOS 기본
-            "/System/Library/Fonts/PingFang.ttc",         # 중국어 폰트 (한글도 지원)
-            "DejaVuSans.ttf",                             # Linux 기본
-            "arial.ttf",                                  # Windows 기본
+            "/opt/vercel/python/lib/python3.9/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf",  # Vercel
+            "DejaVuSans.ttf",                             # 기본 경로
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # Linux
+            "/System/Library/Fonts/AppleSDGothicNeo.ttc",  # macOS (로컬 개발용)
         ]
         
         font = None
@@ -232,14 +233,13 @@ async def process_ppt(
                     img = Image.new('RGB', (1280, 720), color=bg_color)
                     d = ImageDraw.Draw(img)
                     
-                    # 한글을 지원하는 폰트들을 우선순위로 시도
+                    # Vercel 서버리스 환경에 맞는 폰트 경로들
+                    import os
                     font_paths = [
-                        "/System/Library/Fonts/AppleSDGothicNeo.ttc",  # macOS 한글 폰트
-                        "/Library/Fonts/Arial Unicode MS.ttf",        # 유니코드 지원
-                        "/System/Library/Fonts/Helvetica.ttc",        # macOS 기본
-                        "/System/Library/Fonts/PingFang.ttc",         # 중국어 폰트 (한글도 지원)
-                        "DejaVuSans.ttf",                             # Linux 기본
-                        "arial.ttf",                                  # Windows 기본
+                        "/opt/vercel/python/lib/python3.9/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf",  # Vercel
+                        "DejaVuSans.ttf",                             # 기본 경로
+                        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # Linux
+                        "/System/Library/Fonts/AppleSDGothicNeo.ttc",  # macOS (로컬 개발용)
                     ]
                     
                     font = None
@@ -313,3 +313,8 @@ async def process_ppt(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing slides: {e}")
+
+# Vercel 서버리스 함수용 핸들러
+def handler(request):
+    """Vercel 서버리스 함수 핸들러"""
+    return app
