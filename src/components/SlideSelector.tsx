@@ -12,6 +12,11 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
   const [loadingSlides, setLoadingSlides] = useState<Set<number>>(new Set());
   const [isConverting, setIsConverting] = useState(false);
   const [loadedCount, setLoadedCount] = useState(0);
+  
+  // 색상 설정 상태
+  const [backgroundColor, setBackgroundColor] = useState('#ffffff');
+  const [textColor, setTextColor] = useState('#000000');
+  const [highlightKeywords, setHighlightKeywords] = useState<string>('');
 
   // 슬라이드 이미지를 로드하는 함수
   const fetchSlideImage = async (index: number) => {
@@ -22,6 +27,9 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('slide_index', index.toString());
+    formData.append('background_color', backgroundColor);
+    formData.append('text_color', textColor);
+    formData.append('highlight_keywords', JSON.stringify(highlightKeywords.split(',').map(k => k.trim()).filter(k => k)));
 
     try {
       const response = await axios.post('http://localhost:8000/api/get-slide-image', formData, {
@@ -52,6 +60,20 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
       fetchSlideImage(i);
     }
   }, [file, slideCount]);
+
+  // 색상 설정이 변경될 때 슬라이드 미리보기 업데이트
+  useEffect(() => {
+    if (slideCount > 0) {
+      // 기존 이미지 캐시 클리어
+      setSlideImages({});
+      setLoadedCount(0);
+      
+      // 새로운 색상 설정으로 다시 로드
+      for (let i = 0; i < slideCount; i++) {
+        fetchSlideImage(i);
+      }
+    }
+  }, [backgroundColor, textColor, highlightKeywords]);
 
   // 슬라이드 선택/해제
   const toggleSlideSelection = (index: number) => {
@@ -86,6 +108,9 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('slide_indices_json', JSON.stringify(sortedSlides));
+    formData.append('background_color', backgroundColor);
+    formData.append('text_color', textColor);
+    formData.append('highlight_keywords', JSON.stringify(highlightKeywords.split(',').map(k => k.trim()).filter(k => k)));
 
     try {
       const response = await axios.post('http://localhost:8000/api/process', formData, {
@@ -135,6 +160,24 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
     return `${mm}-${dd}`;
+  };
+
+  // 사전 정의된 색상 테마
+  const colorThemes = [
+    { name: '🤍 클래식', bg: '#ffffff', text: '#000000', keywords: '' },
+    { name: '🌙 다크모드', bg: '#1f2937', text: '#ffffff', keywords: '' },
+    { name: '💙 파스텔 블루', bg: '#dbeafe', text: '#1e40af', keywords: '사랑,교회' },
+    { name: '💚 자연', bg: '#dcfce7', text: '#166534', keywords: '생명,평화' },
+    { name: '💜 로얄', bg: '#ede9fe', text: '#6b21a8', keywords: '영광,찬양' },
+    { name: '🧡 따뜻함', bg: '#fed7aa', text: '#c2410c', keywords: '은혜,축복' },
+    { name: '❤️ 정열', bg: '#fecaca', text: '#dc2626', keywords: '사랑,헌신' },
+    { name: '⚫ 모노크롬', bg: '#f3f4f6', text: '#374151', keywords: '' },
+  ];
+
+  const applyTheme = (theme: typeof colorThemes[0]) => {
+    setBackgroundColor(theme.bg);
+    setTextColor(theme.text);
+    setHighlightKeywords(theme.keywords);
   };
 
   return (
@@ -223,6 +266,224 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
               {selectedSlides.length === slideCount ? '🔄 전체 해제' : '✅ 전체 선택'}
             </button>
           </div>
+        </div>
+             </div>
+
+      {/* 색상 설정 카드 */}
+      <div style={{ 
+        backgroundColor: 'white', 
+        padding: '1.5rem', 
+        borderRadius: '0.5rem', 
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)', 
+        marginBottom: '1.5rem' 
+      }}>
+                 <h3 style={{ 
+          fontSize: '1.125rem', 
+          fontWeight: '600', 
+          margin: '0 0 1rem 0',
+          color: '#111827'
+        }}>
+          🎨 색상 및 스타일 설정
+        </h3>
+
+        {/* 색상 테마 선택 */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label style={{ 
+            display: 'block', 
+            fontSize: '0.875rem', 
+            fontWeight: '500', 
+            color: '#374151',
+            marginBottom: '0.5rem'
+          }}>
+            🎯 빠른 테마 선택
+          </label>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
+            gap: '0.5rem' 
+          }}>
+            {colorThemes.map((theme, index) => (
+              <button
+                key={index}
+                onClick={() => applyTheme(theme)}
+                style={{
+                  padding: '0.5rem',
+                  fontSize: '0.75rem',
+                  fontWeight: '500',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  backgroundColor: theme.bg,
+                  color: theme.text,
+                  transition: 'transform 0.1s ease'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                {theme.name}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+          gap: '1rem' 
+        }}>
+          {/* 배경색 설정 */}
+          <div>
+            <label style={{ 
+              display: 'block', 
+              fontSize: '0.875rem', 
+              fontWeight: '500', 
+              color: '#374151',
+              marginBottom: '0.5rem'
+            }}>
+              🖼️ 배경색
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input
+                type="color"
+                value={backgroundColor}
+                onChange={(e) => setBackgroundColor(e.target.value)}
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer'
+                }}
+              />
+              <input
+                type="text"
+                value={backgroundColor}
+                onChange={(e) => setBackgroundColor(e.target.value)}
+                placeholder="#ffffff"
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* 텍스트색 설정 */}
+          <div>
+            <label style={{ 
+              display: 'block', 
+              fontSize: '0.875rem', 
+              fontWeight: '500', 
+              color: '#374151',
+              marginBottom: '0.5rem'
+            }}>
+              ✏️ 텍스트색
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input
+                type="color"
+                value={textColor}
+                onChange={(e) => setTextColor(e.target.value)}
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer'
+                }}
+              />
+              <input
+                type="text"
+                value={textColor}
+                onChange={(e) => setTextColor(e.target.value)}
+                placeholder="#000000"
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* 하이라이트 키워드 설정 */}
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ 
+              display: 'block', 
+              fontSize: '0.875rem', 
+              fontWeight: '500', 
+              color: '#374151',
+              marginBottom: '0.5rem'
+            }}>
+              🌟 하이라이트 키워드 (쉼표로 구분)
+            </label>
+            <input
+              type="text"
+              value={highlightKeywords}
+              onChange={(e) => setHighlightKeywords(e.target.value)}
+              placeholder="예: 사랑, 교회, 예배, 하나님"
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem'
+              }}
+            />
+            <div style={{ 
+              fontSize: '0.75rem', 
+              color: '#6b7280', 
+              marginTop: '0.25rem' 
+            }}>
+              💡 입력한 키워드들이 포함된 텍스트는 다양한 색상으로 강조됩니다
+            </div>
+          </div>
+        </div>
+
+        {/* 미리보기 */}
+        <div style={{ 
+          marginTop: '1rem', 
+          padding: '1rem', 
+          borderRadius: '0.375rem', 
+          border: '1px solid #e5e7eb',
+          backgroundColor: backgroundColor
+        }}>
+          <div style={{ 
+            fontSize: '0.875rem', 
+            color: textColor,
+            fontWeight: '500'
+          }}>
+            📋 미리보기: 이 색상으로 이미지가 생성됩니다
+          </div>
+          {highlightKeywords && (
+            <div style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>
+              <span style={{ color: textColor }}>하이라이트 키워드: </span>
+              {highlightKeywords.split(',').map((keyword, i) => {
+                const colors = ['#ff0000', '#0080ff', '#ffa500', '#800080', '#008000'];
+                return (
+                  <span 
+                    key={i}
+                    style={{ 
+                      color: colors[i % colors.length], 
+                      fontWeight: 'bold',
+                      marginRight: '0.5rem'
+                    }}
+                  >
+                    {keyword.trim()}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

@@ -9,8 +9,59 @@ import json
 import base64
 from datetime import datetime
 import urllib.parse
+import re
 
 app = FastAPI()
+
+def hex_to_rgb(hex_color):
+    """헥스 색상 코드를 RGB 튜플로 변환"""
+    hex_color = hex_color.lstrip('#')
+    if len(hex_color) == 6:
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    elif len(hex_color) == 3:
+        return tuple(int(hex_color[i]*2, 16) for i in range(3))
+    else:
+        return (255, 255, 255)  # 기본 흰색
+
+def draw_text_with_highlights(draw, text, x, y, font, default_color, highlight_keywords):
+    """키워드 하이라이트가 적용된 텍스트 그리기"""
+    if not highlight_keywords:
+        draw.text((x, y), text, fill=default_color, font=font)
+        return
+    
+    # 하이라이트 색상들 (다양한 색상 사용)
+    highlight_colors = [
+        (255, 0, 0),    # 빨강
+        (0, 128, 255),  # 파랑
+        (255, 165, 0),  # 주황
+        (128, 0, 128),  # 보라
+        (0, 128, 0),    # 초록
+    ]
+    
+    # 키워드별로 다른 색상 매핑
+    keyword_colors = {}
+    for i, keyword in enumerate(highlight_keywords):
+        keyword_colors[keyword] = highlight_colors[i % len(highlight_colors)]
+    
+    # 텍스트에서 키워드 찾기 및 색상 적용
+    words = text.split()
+    current_x = x
+    
+    for word in words:
+        word_color = default_color
+        
+        # 키워드 확인
+        for keyword in highlight_keywords:
+            if keyword.lower() in word.lower():
+                word_color = keyword_colors[keyword]
+                break
+        
+        # 단어 그리기
+        draw.text((current_x, y), word + " ", fill=word_color, font=font)
+        
+        # 다음 단어 위치 계산 (대략적)
+        word_width = len(word + " ") * 20  # 폰트 크기에 따른 대략적 계산
+        current_x += word_width
 
 origins = [
     "http://localhost:5173",
@@ -42,8 +93,20 @@ async def get_slide_info(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error getting slide info: {e}")
 
 @app.post("/api/get-slide-image")
-async def get_slide_image(file: UploadFile = File(...), slide_index: int = Form(...)):
+async def get_slide_image(
+    file: UploadFile = File(...), 
+    slide_index: int = Form(...),
+    background_color: str = Form("#ffffff"),  # 기본 흰색
+    text_color: str = Form("#000000"),        # 기본 검정색
+    highlight_keywords: str = Form("[]")      # 하이라이트할 키워드들 (JSON)
+):
     """특정 슬라이드의 이미지를 Base64 인코딩된 문자열로 반환합니다."""
+    highlight_keywords_list = json.loads(highlight_keywords)
+    
+    # 색상 변환
+    bg_color = hex_to_rgb(background_color)
+    txt_color = hex_to_rgb(text_color)
+    
     try:
         pptx_content = await file.read()
         prs = Presentation(io.BytesIO(pptx_content))
@@ -59,7 +122,7 @@ async def get_slide_image(file: UploadFile = File(...), slide_index: int = Form(
         
         full_text = "\n".join(text_content)
         
-        img = Image.new('RGB', (1280, 720), color = 'white')
+        img = Image.new('RGB', (1280, 720), color=bg_color)
         d = ImageDraw.Draw(img)
         
         # 한글을 지원하는 폰트들을 우선순위로 시도
@@ -83,7 +146,7 @@ async def get_slide_image(file: UploadFile = File(...), slide_index: int = Form(
         if font is None:
             font = ImageFont.load_default()
 
-        # 텍스트 렌더링 (개선된 여러 줄 처리)
+        # 텍스트 렌더링 (개선된 여러 줄 처리 + 색상 적용)
         if full_text:
             # 텍스트를 줄별로 나누어 렌더링
             lines = full_text.split('\n')
@@ -103,17 +166,17 @@ async def get_slide_image(file: UploadFile = File(...), slide_index: int = Form(
                                 current_line = test_line
                             else:
                                 if current_line:
-                                    d.text((50, y_position), current_line, fill=(0, 0, 0), font=font)
+                                    draw_text_with_highlights(d, current_line, 50, y_position, font, txt_color, highlight_keywords_list)
                                     y_position += line_height
                                 current_line = word
                         if current_line and y_position < 650:
-                            d.text((50, y_position), current_line, fill=(0, 0, 0), font=font)
+                            draw_text_with_highlights(d, current_line, 50, y_position, font, txt_color, highlight_keywords_list)
                             y_position += line_height
                     else:
-                        d.text((50, y_position), line, fill=(0, 0, 0), font=font)
+                        draw_text_with_highlights(d, line, 50, y_position, font, txt_color, highlight_keywords_list)
                         y_position += line_height
         else:
-            d.text((50, 50), f"Slide {slide_index + 1}", fill=(128, 128, 128), font=font)
+            d.text((50, 50), f"Slide {slide_index + 1}", fill=txt_color, font=font)
         
         img_buffer = io.BytesIO()
         img.save(img_buffer, "PNG")
@@ -125,8 +188,19 @@ async def get_slide_image(file: UploadFile = File(...), slide_index: int = Form(
         raise HTTPException(status_code=500, detail=f"Error processing slide: {e}")
 
 @app.post("/api/process")
-async def process_ppt(file: UploadFile = File(...), slide_indices_json: str = Form(...)):
+async def process_ppt(
+    file: UploadFile = File(...), 
+    slide_indices_json: str = Form(...),
+    background_color: str = Form("#ffffff"),  # 기본 흰색
+    text_color: str = Form("#000000"),        # 기본 검정색
+    highlight_keywords: str = Form("[]")      # 하이라이트할 키워드들 (JSON)
+):
     slide_indices = json.loads(slide_indices_json)
+    highlight_keywords_list = json.loads(highlight_keywords)
+    
+    # 색상 변환
+    bg_color = hex_to_rgb(background_color)
+    txt_color = hex_to_rgb(text_color)
     
     try:
         pptx_content = await file.read()
@@ -154,8 +228,8 @@ async def process_ppt(file: UploadFile = File(...), slide_indices_json: str = Fo
                     
                     full_text = "\n".join(text_content)
                     
-                    # 이미지 생성 (1280x720 해상도)
-                    img = Image.new('RGB', (1280, 720), color='white')
+                    # 이미지 생성 (1280x720 해상도) - 사용자 정의 배경색
+                    img = Image.new('RGB', (1280, 720), color=bg_color)
                     d = ImageDraw.Draw(img)
                     
                     # 한글을 지원하는 폰트들을 우선순위로 시도
@@ -179,7 +253,7 @@ async def process_ppt(file: UploadFile = File(...), slide_indices_json: str = Fo
                     if font is None:
                         font = ImageFont.load_default()
 
-                    # 텍스트 렌더링 (개선된 여러 줄 처리)
+                    # 텍스트 렌더링 (개선된 여러 줄 처리 + 색상 적용)
                     if full_text:
                         # 텍스트를 줄별로 나누어 렌더링
                         lines = full_text.split('\n')
@@ -200,18 +274,18 @@ async def process_ppt(file: UploadFile = File(...), slide_indices_json: str = Fo
                                             current_line = test_line
                                         else:
                                             if current_line:
-                                                d.text((50, y_position), current_line, fill=(0, 0, 0), font=font)
+                                                draw_text_with_highlights(d, current_line, 50, y_position, font, txt_color, highlight_keywords_list)
                                                 y_position += line_height
                                             current_line = word
                                     if current_line and y_position < 650:
-                                        d.text((50, y_position), current_line, fill=(0, 0, 0), font=font)
+                                        draw_text_with_highlights(d, current_line, 50, y_position, font, txt_color, highlight_keywords_list)
                                         y_position += line_height
                                 else:
-                                    d.text((50, y_position), line, fill=(0, 0, 0), font=font)
+                                    draw_text_with_highlights(d, line, 50, y_position, font, txt_color, highlight_keywords_list)
                                     y_position += line_height
                     else:
                         # 텍스트가 없는 경우 슬라이드 번호 표시
-                        d.text((50, 50), f"Slide {slide_index + 1}", fill=(128, 128, 128), font=font)
+                        d.text((50, 50), f"Slide {slide_index + 1}", fill=txt_color, font=font)
                     
                     # PNG 이미지로 저장
                     img_buffer = io.BytesIO()
