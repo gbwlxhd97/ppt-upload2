@@ -18,6 +18,9 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
   const [textColor, setTextColor] = useState('#000000');
   const [highlightKeywords, setHighlightKeywords] = useState<string>('');
 
+  // 모달 상태
+  const [fullscreenSlide, setFullscreenSlide] = useState<number | null>(null);
+
   // 슬라이드 이미지를 로드하는 함수
   const fetchSlideImage = async (index: number) => {
     if (slideImages[index] || loadingSlides.has(index)) return;
@@ -161,6 +164,30 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
     const dd = String(now.getDate()).padStart(2, '0');
     return `${mm}-${dd}`;
   };
+
+  // 모달 관련 함수들
+  const openFullscreen = (slideIndex: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // 슬라이드 선택 이벤트 방지
+    setFullscreenSlide(slideIndex);
+  };
+
+  const closeFullscreen = () => {
+    setFullscreenSlide(null);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      closeFullscreen();
+    }
+  };
+
+  // ESC 키로 모달 닫기
+  useEffect(() => {
+    if (fullscreenSlide !== null) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [fullscreenSlide]);
 
   // 사전 정의된 색상 테마
   const colorThemes = [
@@ -546,15 +573,50 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
                   }} />
                 </div>
               ) : slideImages[index] ? (
-                <img 
-                  src={slideImages[index]} 
-                  alt={`Slide ${index + 1}`}
-                  style={{ 
-                    width: '100%', 
-                    height: '100%', 
-                    objectFit: 'contain' 
-                  }}
-                />
+                <>
+                  <img 
+                    src={slideImages[index]} 
+                    alt={`Slide ${index + 1}`}
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: 'contain' 
+                    }}
+                  />
+                  {/* 확대 아이콘 */}
+                  <button
+                    onClick={(e) => openFullscreen(index, e)}
+                    style={{
+                      position: 'absolute',
+                      top: '0.5rem',
+                      left: '0.5rem',
+                      width: '2rem',
+                      height: '2rem',
+                      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.375rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.875rem',
+                      transition: 'all 0.2s ease',
+                      zIndex: 10
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+                      e.currentTarget.style.transform = 'scale(1.1)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                    title="전체화면으로 보기"
+                  >
+                    ⛶
+                  </button>
+                </>
               ) : (
                 <div style={{ 
                   position: 'absolute', 
@@ -696,6 +758,151 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
           </button>
         </div>
       </div>
+
+      {/* 전체화면 모달 */}
+      {fullscreenSlide !== null && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            zIndex: 50,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '2rem'
+          }}
+          onClick={closeFullscreen}
+        >
+          {/* 모달 내용 */}
+          <div 
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              backgroundColor: 'white',
+              borderRadius: '0.75rem',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 헤더 */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderBottom: '1px solid #e5e7eb',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: '#f9fafb'
+            }}>
+              <h3 style={{
+                fontSize: '1.25rem',
+                fontWeight: '600',
+                color: '#111827',
+                margin: 0
+              }}>
+                📄 슬라이드 {fullscreenSlide + 1}
+              </h3>
+              <button
+                onClick={closeFullscreen}
+                style={{
+                  width: '2.5rem',
+                  height: '2.5rem',
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.25rem',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#dc2626';
+                  e.currentTarget.style.transform = 'scale(1.1)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = '#ef4444';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+                title="닫기 (ESC)"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 이미지 */}
+            <div style={{
+              padding: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'white'
+            }}>
+              {slideImages[fullscreenSlide] ? (
+                <img
+                  src={slideImages[fullscreenSlide]}
+                  alt={`Slide ${fullscreenSlide + 1}`}
+                  style={{
+                    maxWidth: '80vw',
+                    maxHeight: '75vh',
+                    objectFit: 'contain',
+                    borderRadius: '0.375rem',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                />
+              ) : (
+                <div style={{
+                  padding: '4rem',
+                  textAlign: 'center',
+                  color: '#6b7280'
+                }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📄</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '500' }}>
+                    슬라이드 {fullscreenSlide + 1}
+                  </div>
+                  <div style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                    이미지를 불러오는 중...
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 하단 정보 */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid #e5e7eb',
+              backgroundColor: '#f9fafb',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '0.875rem',
+              color: '#6b7280'
+            }}>
+              <div>
+                💡 <strong>팁:</strong> ESC 키를 눌러 닫을 수 있습니다
+              </div>
+              <div>
+                {selectedSlides.includes(fullscreenSlide) ? (
+                  <span style={{ color: '#10b981', fontWeight: '600' }}>
+                    ✅ 선택됨
+                  </span>
+                ) : (
+                  <span style={{ color: '#6b7280' }}>
+                    ⭕ 선택되지 않음
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CSS 애니메이션 */}
       <style>{`
