@@ -1,14 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import CanvasSlideRenderer from './CanvasSlideRenderer';
 
 interface SlideSelectorProps {
   file: File;
   slideCount: number;
 }
 
+interface SlideTextData {
+  slide_index: number;
+  text_blocks: Array<{
+    text: string;
+    font_size: number;
+    bold: boolean;
+  }>;
+  full_text: string;
+}
+
 const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
   const [selectedSlides, setSelectedSlides] = useState<number[]>([]);
-  const [slideImages, setSlideImages] = useState<{ [key: number]: string }>({});
+  const [slideTextData, setSlideTextData] = useState<{ [key: number]: SlideTextData }>({});
+  const [, setSlideImages] = useState<{ [key: number]: string }>({});
   const [loadingSlides, setLoadingSlides] = useState<Set<number>>(new Set());
   const [isConverting, setIsConverting] = useState(false);
   const [loadedCount, setLoadedCount] = useState(0);
@@ -21,33 +33,30 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
   // 모달 상태
   const [fullscreenSlide, setFullscreenSlide] = useState<number | null>(null);
 
-  // 슬라이드 이미지를 로드하는 함수
-  const fetchSlideImage = async (index: number) => {
-    if (slideImages[index] || loadingSlides.has(index)) return;
+  // 슬라이드 텍스트 데이터를 로드하는 함수
+  const fetchSlideText = async (index: number) => {
+    if (slideTextData[index] || loadingSlides.has(index)) return;
 
     setLoadingSlides(prev => new Set(prev).add(index));
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('slide_index', index.toString());
-    formData.append('background_color', backgroundColor);
-    formData.append('text_color', textColor);
-    formData.append('highlight_keywords', JSON.stringify(highlightKeywords.split(',').map(k => k.trim()).filter(k => k)));
 
     try {
-      const response = await axios.post('/api/get-slide-image', formData, {
+      const response = await axios.post('/api/get-slide-text', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
       
-      setSlideImages(prev => ({
+      setSlideTextData(prev => ({
         ...prev,
-        [index]: `data:image/png;base64,${response.data.image}`
+        [index]: response.data
       }));
       setLoadedCount(prev => prev + 1);
     } catch (error) {
-      console.error(`Error fetching slide ${index + 1}:`, error);
+      console.error(`Error fetching slide text ${index + 1}:`, error);
     } finally {
       setLoadingSlides(prev => {
         const newSet = new Set(prev);
@@ -57,26 +66,12 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
     }
   };
 
-  // 컴포넌트 마운트 시 모든 슬라이드 이미지 로드
+  // 컴포넌트 마운트 시 모든 슬라이드 텍스트 데이터 로드
   useEffect(() => {
     for (let i = 0; i < slideCount; i++) {
-      fetchSlideImage(i);
+      fetchSlideText(i);
     }
   }, [file, slideCount]);
-
-  // 색상 설정이 변경될 때 슬라이드 미리보기 업데이트
-  useEffect(() => {
-    if (slideCount > 0) {
-      // 기존 이미지 캐시 클리어
-      setSlideImages({});
-      setLoadedCount(0);
-      
-      // 새로운 색상 설정으로 다시 로드
-      for (let i = 0; i < slideCount; i++) {
-        fetchSlideImage(i);
-      }
-    }
-  }, [backgroundColor, textColor, highlightKeywords]);
 
   // 슬라이드 선택/해제
   const toggleSlideSelection = (index: number) => {
@@ -572,15 +567,20 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
                     animation: 'spin 1s linear infinite'
                   }} />
                 </div>
-              ) : slideImages[index] ? (
+              ) : slideTextData[index] ? (
                 <>
-                  <img 
-                    src={slideImages[index]} 
-                    alt={`Slide ${index + 1}`}
-                    style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      objectFit: 'contain' 
+                  <CanvasSlideRenderer
+                    slideData={slideTextData[index]}
+                    backgroundColor={backgroundColor}
+                    textColor={textColor}
+                    highlightKeywords={highlightKeywords.split(',').map(k => k.trim()).filter(k => k)}
+                    width={200}
+                    height={150}
+                    onImageGenerated={(dataUrl) => {
+                      setSlideImages(prev => ({
+                        ...prev,
+                        [index]: dataUrl
+                      }));
                     }}
                   />
                   {/* 확대 아이콘 */}
@@ -845,17 +845,14 @@ const SlideSelector: React.FC<SlideSelectorProps> = ({ file, slideCount }) => {
               justifyContent: 'center',
               backgroundColor: 'white'
             }}>
-              {slideImages[fullscreenSlide] ? (
-                <img
-                  src={slideImages[fullscreenSlide]}
-                  alt={`Slide ${fullscreenSlide + 1}`}
-                  style={{
-                    maxWidth: '80vw',
-                    maxHeight: '75vh',
-                    objectFit: 'contain',
-                    borderRadius: '0.375rem',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                  }}
+              {slideTextData[fullscreenSlide] ? (
+                <CanvasSlideRenderer
+                  slideData={slideTextData[fullscreenSlide]}
+                  backgroundColor={backgroundColor}
+                  textColor={textColor}
+                  highlightKeywords={highlightKeywords.split(',').map(k => k.trim()).filter(k => k)}
+                  width={800}
+                  height={600}
                 />
               ) : (
                 <div style={{

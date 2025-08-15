@@ -94,6 +94,39 @@ async def get_slide_info(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting slide info: {e}")
 
+@app.post("/api/get-slide-text")
+async def get_slide_text(
+    file: UploadFile = File(...), 
+    slide_index: int = Form(...)
+):
+    """슬라이드의 텍스트 정보만 반환 (클라이언트 렌더링용)"""
+    try:
+        contents = await file.read()
+        prs = Presentation(io.BytesIO(contents))
+        
+        if not (0 <= slide_index < len(prs.slides)):
+            raise HTTPException(status_code=400, detail="Invalid slide index")
+            
+        slide = prs.slides[slide_index]
+        text_blocks = []
+        
+        # 각 텍스트 박스의 정보를 수집
+        for shape in slide.shapes:
+            if hasattr(shape, "text") and shape.text.strip():
+                text_blocks.append({
+                    "text": shape.text,
+                    "font_size": 16,  # 기본 폰트 크기
+                    "bold": False
+                })
+        
+        return {
+            "slide_index": slide_index,
+            "text_blocks": text_blocks,
+            "full_text": "\n".join([block["text"] for block in text_blocks]) if text_blocks else f"Slide {slide_index + 1}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error extracting slide text: {e}")
+
 @app.post("/api/get-slide-image")
 async def get_slide_image(
     file: UploadFile = File(...), 
